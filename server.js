@@ -26,7 +26,6 @@ if (!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
   console.error("❌ FIREBASE_SERVICE_ACCOUNT_BASE64 is missing or undefined!");
 }
 
-
 const serviceAccount = JSON.parse(
   Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, "base64").toString("utf8")
 );
@@ -35,8 +34,37 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-
 const db = admin.firestore();
+
+// ----------------------
+// Root route for status (HTML page)
+// ----------------------
+app.get("/", (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Hershey Ward SMS Backend</title>
+      <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        h1 { color: #2E8B57; }
+        p { font-size: 18px; }
+        code { background-color: #f2f2f2; padding: 2px 6px; border-radius: 4px; }
+      </style>
+    </head>
+    <body>
+      <h1>✅ Hershey Ward SMS Backend is Running!</h1>
+      <p>Twilio webhook endpoint: <code>/twilio-webhook</code></p>
+      <p>Send alert endpoint (POST, max 200 chars): <code>/send-alert</code></p>
+      <p>Example POST JSON for alerts:</p>
+      <pre>{
+  "message": "This is a test alert!"
+}</pre>
+      <p>Remember: Replies with "STOP" will unsubscribe a user.</p>
+    </body>
+    </html>
+  `);
+});
 
 // ----------------------
 // Twilio Webhook Endpoint
@@ -56,11 +84,9 @@ app.post("/twilio-webhook", async (req, res) => {
         body: "You have been unsubscribed from Hershey Ward alerts.",
       });
     } else {
-      // Add subscriber if not exists
       const doc = await subscriberRef.get();
       if (!doc.exists) {
         await subscriberRef.set({ subscribedAt: new Date().toISOString() });
-
         await client.messages.create({
           from: process.env.TWILIO_PHONE_NUMBER,
           to: fromNumber,
@@ -71,7 +97,7 @@ app.post("/twilio-webhook", async (req, res) => {
     }
 
     res.set("Content-Type", "text/xml");
-    res.send("<Response></Response>"); // Twilio expects valid XML
+    res.send("<Response></Response>");
   } catch (err) {
     console.error(err);
     res.status(500).send("<Response></Response>");
@@ -113,5 +139,4 @@ app.post("/send-alert", async (req, res) => {
 // Start Server
 // ----------------------
 const port = process.env.PORT || 8080;
-
 app.listen(port, () => console.log(`✅ Server running on port ${port}`));
